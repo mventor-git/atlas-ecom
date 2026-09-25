@@ -38,9 +38,9 @@ The numbers below are for the latest run, which includes the web slice. The data
 - `npm run web:smoke` — passed over real HTTP on an ephemeral port, and its JSON reports 6 products, 37 variants, 35 sellable variants, one order of 17800 cents, and a `404` for an unknown route. 35 sellable of 37 is the two `inactive` `Ember` bottle variants from the seed, so the page and the fixture agree. Nothing was left listening: the smoke closes its server in a `finally`.
 - `npm run smoke` — standalone catalog -> cart -> checkout still passed; the local domain path is unchanged under the new display fields.
 - `python -B tests/cross_process_smoke.py` from the sibling `atlas-erp` repository — not rerun for the web slice, because it needs the peer database that no longer exists. The last result, from the published commit, was: passed, two real processes over real HTTP with a real peer database. The harness runs the read smoke, then the connected checkout smoke, then the lower-level order smoke. The checkout smoke reported `durable_replay: true`, `replayed: true`, and `order_store: "postgres"`, and it exited zero only because the peer's audit cursor advanced, stock fell by exactly the sold quantity, the replay left the peer's cursor and stock untouched, and the `OrderBook` held exactly one connected order.
-- `git status --short --branch` — `## main...origin/main` with no ahead/behind count, so the branch is published and in step with `origin/main`, but the working tree is **not** clean: this web slice is uncommitted, with `package.json`, `src/commerce.ts`, and `src/index.ts` modified and `src/demo-catalog.ts`, `src/web-server.ts`, `src/web-smoke.ts`, `test/demo-catalog.test.ts`, and `test/web-server.test.ts` untracked. The tracked set is still the 29 files recorded above: `.gitignore`, `PROJECT_STATE.md`, `connect/`, `contract.md`, `db/`, `package-lock.json`, `package.json`, `src/`, `test/`, and this slice adds no new dependency: `package.json` changed only its scripts.
+- `git status --short --branch` — `## main...origin/main` with no ahead/behind count, so the branch is published and in step with `origin/main`, but the working tree is **not** clean: this web slice is uncommitted, with `package.json`, `src/commerce.ts`, and `src/index.ts` modified and `src/demo-catalog.ts`, `src/web-server.ts`, `src/web-smoke.ts`, `test/demo-catalog.test.ts`, and `test/web-server.test.ts` untracked. The tracked set is still the 29 files recorded above: `.gitignore`, `PROJECT_STATE.md`, `connect/`, `contract.md`, `db/`, `package-lock.json`, `package.json`, `src/`, `test/`, and this slice adds no new dependency: `package.json` changed only its scripts. Superseded by a later re-check: this slice was committed as `9f5b453` and the v1.1.0 amendment as `bca8564`, and the only uncommitted changes are now `contract.md` and this file, both from the v1.1.1 amendment.
 - `git diff --check` — no whitespace errors reported, and with the tree tracked this check now actually covers the sources. Whitespace was verified directly as well: 0 trailing-whitespace lines, 0 hard CRs, 0 tabs, and a final newline.
-- `contract.md` and `connect/SPEC.md` were not modified by this slice.
+- `contract.md` and `connect/SPEC.md` were not modified by this slice. Since that run, the v1.1.1 design-token amendment has modified `contract.md` and this file in the working tree, still uncommitted; `connect/SPEC.md` is untouched and no source file changed with it.
 
 ## Verification recorded for the example database
 
@@ -67,13 +67,20 @@ The web slice left no server behind either. `test/web-server.test.ts` starts the
 
 ## Explicitly deferred
 
-- Design tokens. `contract.md` is now at v1.1.0, which adds the shared Atlas UI
-  palette, light/dark support, and a design-token acceptance gate; that is a
-  documentation-only amendment and no code changed with it. The storefront and
-  the `ecom-manager` in `src/web-server.ts` predate the requirement: they carry
-  their own inline colors and no light/dark mode, so they must not be reported
-  as satisfying that gate until the palette is applied as named tokens and
-  checked in both modes.
+- Design tokens. `contract.md` is now at v1.1.1, which replaces the short palette
+  section with the full shared Atlas UI token table (`bg.canvas`, `bg.surface`,
+  `fg.default`, `fg.muted`, `accent.default`, `link.default`,
+  `border.divider`, `border.control`, `onAccent.default`, `focus.ring`, and the
+  four `state.*` pairs) in light and dark, records the three derived
+  contrast-safe values and the light `state.success` 3.38:1 caveat, and names
+  shadcn/ui as the preferred but replaceable component foundation. The
+  design-token gate is unchanged in intent and now checks the token table in
+  both modes. Both the v1.1.0 and v1.1.1 amendments are documentation-only and
+  no code changed with either. The storefront and the `ecom-manager` in
+  `src/web-server.ts` are still not tokenized: they carry their own inline
+  colors and no light/dark mode, so they must not be reported as satisfying
+  that gate until the token table is applied as named tokens and checked in
+  both modes.
 - `OrderBook` is still in memory. A connected order is durable only as a receipt row in `connected_orders`; after a restart the book is empty and the order reappears only when the same key is replayed through `ConnectedCheckout`. Nothing scans the table at startup to rebuild it, so `summary()` and `listOrders()` do not reflect prior orders until something replays them.
 - The local commerce path is still entirely in memory. `StandaloneCatalog` products, `Cart` contents, and the order returned by `Cart.checkout()` are lost on restart. Only the connected order command is durable, so local and connected orders now have genuinely different durability and there is no single order store behind both.
 - The dual-write window between Ecom and the peer is open. `reserve`, the peer `POST`, and `complete` are three separate operations with no transaction spanning them, so a crash after the peer accepted the sale but before the receipt was completed leaves a `pending` claim that reports "submission in progress" with no automated recovery. The derived `ecom-${key}` sale id is what keeps a manual recovery from becoming a second peer sale, but recovery itself is currently a manual `abort`. Closing this needs a lease or expiry plus an explicit reconcile step, added when a real crash is in scope.
