@@ -3,7 +3,7 @@
 ## Metadata
 
 - Product: Atlas Ecom
-- Contract version: 1.1.1
+- Contract version: 1.2.0
 - Status: ACTIVE
 - Date: 2026-09-25
 - Approval date: 2026-09-25
@@ -113,6 +113,50 @@ replaceable and the token contract is authoritative.
   3.38:1. It is preserved as supplied and is for non-text and large-text use
   only; for normal text on that background, pair it with `#2D0000` instead.
 
+## UI implementation direction
+
+The approved frontend direction for the storefront and `ecom-manager` is
+React 19 + TypeScript + Vite + Tailwind CSS v4 + shadcn/ui on Radix UI
+primitives. shadcn components are copied into this product's source tree and
+owned here, not consumed as a shared runtime package, so a product never
+depends on another product's components to build.
+
+- The storefront and the `ecom-manager` are separate frontend builds, each with
+  its own dependencies and build output. The existing Node API and its routes
+  are unchanged, `atlas_ecom` keeps sole ownership of its database, and both
+  frontends read that API as their only data source.
+- The v1.1.1 token table above remains the semantic authority. shadcn and
+  Tailwind variables are a derived mapping onto that table, not a second source
+  of colour truth, and no component file contains a raw hex value.
+- The required mapping is fixed, so the two products stay visually identical on
+  shared surfaces:
+
+| shadcn / Tailwind variable | Shared token |
+| --- | --- |
+| `--background` | `--atlas-bg-canvas` (`bg.canvas`) |
+| `--foreground` | `--atlas-fg-default` (`fg.default`) |
+| `--card` | `--atlas-bg-surface` (`bg.surface`) |
+| `--primary` | `--atlas-accent` (`accent.default`) |
+| `--primary-foreground` | `--atlas-on-accent` (`onAccent.default`) |
+| `--muted-foreground` | `--atlas-fg-muted` (`fg.muted`), canvas use only |
+| `--border` | `--atlas-border-divider` (`border.divider`) |
+| `--input` | `--atlas-border-control` (`border.control`) |
+| `--ring` | `--atlas-focus-ring` (`focus.ring`) |
+
+- The four shadcn state variables (`--success`, `--warning`, `--danger`,
+  `--info`) resolve to the `state.*` token pairs above, as a foreground on a
+  background. Within `state.success`, `state.success.text` uses the accessible
+  ink `#2D0000` in both modes, because the supplied light foreground `#2A7C13`
+  on `#C7D3C0` is 3.38:1 and is not a normal-text pair, and
+  `state.success.indicator` is the non-text marker carrying the supplied
+  foreground.
+- Light and dark mode, `:focus-visible` behavior driven by `focus.ring`,
+  keyboard operability of every interactive component, and WCAG AA in both
+  modes are required, not optional.
+- Adopting shadcn/ui is an implementation direction for the frontends only. It
+  is not permission to rewrite the backend, to move domain logic into the
+  browser, or to share a database with another product.
+
 ## Data and ownership
 
 - Atlas Ecom owns its PostgreSQL database, named `atlas_ecom`.
@@ -148,6 +192,12 @@ replaceable and the token contract is authoritative.
    rather than to a hard-coded color, and text and controls meet WCAG AA in
    both modes. The component foundation behind the markup is not fixed by this
    gate.
+7. **Storefront and manager frontends:** the storefront and the `ecom-manager`
+   are separate Vite + React + TypeScript frontend builds that use the approved
+   shadcn/ui and Tailwind CSS v4 direction, resolve the shared token table above
+   through the required shadcn variable mapping in both light and dark mode with
+   no raw hex value in a component, and read every value they display from the
+   existing Node API, which stays their only data source.
 
 ## Risks and unknowns
 
@@ -159,12 +209,25 @@ replaceable and the token contract is authoritative.
   commerce operators.
 - Prolonged degradation, cursor retention, and resynchronization behavior need
   validation with realistic data volumes.
-- The current demo storefront and `ecom-manager` are not tokenized: they
-  predate this contract's token table, carry their own inline colors, and have
-  no light/dark mode, so they must not be presented as satisfying the
-  design-token gate until they are tokenized and verified in both modes.
+- The current demo storefront and `ecom-manager` demonstrate the shared tokens
+  and light/dark behavior at the token level, but they are server-rendered
+  demos with no build step, so they do not satisfy the new separate
+  Vite/React/shadcn frontend gate until they are migrated.
 - The light `state.success` pair `#2A7C13` on `#C7D3C0` is 3.38:1 and is not a
   normal-text pair; normal text on that background has to use `#2D0000`.
+- The approved direction adds a second and a third Node build surface on top of
+  a product that deliberately serves its pages from `node:http` with no build
+  step: a Vite build, a lockfile, a Tailwind v4 build step, and generated build
+  output per frontend, all of which have to stay out of the existing `src/` and
+  test path.
+- shadcn components are generated into this product's source tree and into the
+  sibling product's tree separately, so the same component exists twice and can
+  drift. A shadcn upgrade or a local component edit has to be applied
+  deliberately per product, and there is no shared package to upgrade once.
+- Nothing checks token parity between the two products. If either shadcn
+  variable mapping is edited and the other is not, the storefront and the
+  operator console diverge with no failing check, so parity needs a check that
+  resolves both mappings to the shared token values in both modes.
 
 ## Amendment history
 
@@ -173,3 +236,4 @@ replaceable and the token contract is authoritative.
 | 1.0.0 | 2026-09-25 | Initial approved standalone commerce contract, storefront and manager boundaries, Ecom ownership, and embedded connect defaults. | ACTIVE |
 | 1.1.0 | 2026-09-25 | Approved shared Atlas UI palette and light/dark design-token contract. | ACTIVE |
 | 1.1.1 | 2026-09-25 | Expanded shared UI token table, derived contrast-safe values, and preferred shadcn/ui foundation. | ACTIVE |
+| 1.2.0 | 2026-09-25 | Approved React/Vite/Tailwind/shadcn frontend direction and token mapping for both products. | ACTIVE |
