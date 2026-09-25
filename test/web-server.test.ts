@@ -621,3 +621,187 @@ test("the theme parameter reaches the pages only and leaves the JSON API alone",
     assert.match(html, /<a href="\/manager\?theme=dark">ecom-manager<\/a>/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// WCAG AA for the pairs these pages paint (contract.md v1.1.1, "Contrast")
+// ---------------------------------------------------------------------------
+
+/** WCAG 2.1 relative luminance, from the sRGB definition and nothing else. */
+function luminance(hex: string): number {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const channel = (raw: number): number => {
+    const part = raw / 255;
+    return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+  };
+  return (
+    0.2126 * channel((value >> 16) & 0xff) +
+    0.7152 * channel((value >> 8) & 0xff) +
+    0.0722 * channel(value & 0xff)
+  );
+}
+
+/** The WCAG ratio: the lighter of the two over the darker, each offset by 0.05. */
+function contrast(foreground: string, background: string): number {
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Every rule in the sheet keyed by each of its own selectors, so a grouped
+ * selector is addressable one part at a time. Comments are dropped first,
+ * because a comment sits between two rules and would otherwise be read as part
+ * of the selector that follows it.
+ */
+function ruleMap(sheet: string): Map<string, string> {
+  const found = new Map<string, string>();
+  const css = sheet.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const one of selector.split(",")) found.set(one.trim().replace(/\s+/g, " "), body);
+  }
+  return found;
+}
+
+/**
+ * Every text pair the stylesheet paints, as (token, background) role names
+ * resolved through the token table the page actually served, so the check
+ * follows the tokens instead of restating hex values. `border.divider` is
+ * deliberately absent: it is decorative by contract and never a text colour.
+ */
+const PAINTED_TEXT: Readonly<Record<string, readonly [string, string]>> = {
+  "body on canvas": ["--atlas-fg-default", "--atlas-bg-canvas"],
+  "body on a card, table or stat tile": ["--atlas-fg-default", "--atlas-bg-surface"],
+  "muted line on canvas": ["--atlas-fg-muted", "--atlas-bg-canvas"],
+  "link on canvas": ["--atlas-link", "--atlas-bg-canvas"],
+  "text on accent": ["--atlas-on-accent", "--atlas-accent"],
+  "warning note": ["--atlas-warning-fg", "--atlas-warning-bg"],
+  "danger note": ["--atlas-danger-fg", "--atlas-danger-bg"],
+  "info note": ["--atlas-info-fg", "--atlas-info-bg"],
+};
+
+/** Borders and rings that carry meaning are non-text UI, so WCAG 1.4.11 asks 3:1. */
+const PAINTED_NON_TEXT: Readonly<Record<string, readonly [string, string]>> = {
+  "focus ring on canvas": ["--atlas-focus-ring", "--atlas-bg-canvas"],
+  "focus ring on a card": ["--atlas-focus-ring", "--atlas-bg-surface"],
+  "control border on canvas": ["--atlas-border-control", "--atlas-bg-canvas"],
+};
+
+/**
+ * The two pairs this stylesheet does not close, recorded rather than hidden.
+ * Both are a contract question, not a missing rule: the token table either
+ * keeps the value explicitly or derives it against `bg.canvas` alone, so no
+ * token resolves them to AA where the pages paint them. A fix has to change
+ * the painted pair or the contract, and then the row has to go.
+ */
+const DOCUMENTED_SHORTFALLS: ReadonlyArray<readonly [string, string, string, string, number]> = [
+  // The contract keeps the light success pair as supplied at 3.38:1 and calls it
+  // non-text and large-text only, yet `.ok-note` paints it as a .9rem status
+  // line after checkout and after an add, so light mode is short of AA text.
+  ["light", "success note", "--atlas-success-fg", "--atlas-success-bg", 4.5],
+  // border.control is derived against bg.canvas (3.73:1 in dark) while every
+  // control is painted on bg.surface, where that same value is 2.79:1.
+  ["dark", "control border on a card", "--atlas-border-control", "--atlas-bg-surface", 3],
+];
+
+/** Both token tables as the page served them, keyed by mode. */
+function modesOf(css: string): ReadonlyArray<readonly [string, Record<string, string>]> {
+  return [
+    ["light", tokens(css, LIGHT_SELECTOR)],
+    ["dark", tokens(css, DARK_SELECTOR)],
+  ];
+}
+
+test("every text pair these pages paint meets WCAG AA in both modes", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      const css = styleSheet(await (await request(path)).text());
+      for (const [mode, values] of modesOf(css)) {
+        for (const [role, [foreground, background]] of Object.entries(PAINTED_TEXT)) {
+          const ratio = contrast(values[foreground], values[background]);
+          assert.ok(ratio >= 4.5, `${path} ${mode}: ${role} is ${ratio.toFixed(2)}:1`);
+        }
+        // The success pair is the contract's own caveat rather than a rule the
+        // stylesheet gets to choose: it is dark in light mode only, where it
+        // measures 3.38:1 and is recorded as a shortfall instead.
+        if (mode === "dark") {
+          const ratio = contrast(values["--atlas-success-fg"], values["--atlas-success-bg"]);
+          assert.ok(ratio >= 4.5, `${path} dark: success note is ${ratio.toFixed(2)}:1`);
+        }
+      }
+    }
+  });
+});
+
+test("every control border and focus ring meets 3:1 in both modes", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      const css = styleSheet(await (await request(path)).text());
+      for (const [mode, values] of modesOf(css)) {
+        for (const [role, [foreground, background]] of Object.entries(PAINTED_NON_TEXT)) {
+          const ratio = contrast(values[foreground], values[background]);
+          assert.ok(ratio >= 3, `${path} ${mode}: ${role} is ${ratio.toFixed(2)}:1`);
+        }
+      }
+    }
+  });
+});
+
+test("the dark muted token is only AA-safe on the canvas, and that is where it is painted", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      const css = styleSheet(await (await request(path)).text());
+      const dark = tokens(css, DARK_SELECTOR);
+
+      // The contract derived dark fg.muted against bg.canvas, so it clears AA
+      // there and misses it on bg.surface. That is the whole reason the
+      // stylesheet keeps it off cards, tables and stat tiles.
+      assert.ok(contrast(dark["--atlas-fg-muted"], dark["--atlas-bg-canvas"]) >= 4.5, path);
+      assert.ok(contrast(dark["--atlas-fg-muted"], dark["--atlas-bg-surface"]) < 4.5, path);
+
+      // And the stylesheet agrees: only these rules paint it, and all of them
+      // are lines the canvas itself paints.
+      const paintedBy = [...ruleMap(css)]
+        .filter(([, body]) => body.includes("var(--atlas-fg-muted)"))
+        .map(([selector]) => selector)
+        .sort();
+      assert.deepEqual(paintedBy, [".meta", "footer", "label"], path);
+    }
+  });
+});
+
+test("every line a surface paints uses fg.default, and a state note still wins", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      const rules = ruleMap(styleSheet(await (await request(path)).text()));
+
+      // These are the rules that put a card, a table, a stat tile, a disabled
+      // button and a form control on bg.surface. An enabled button is not one of
+      // them: it is painted with accent.default, and only [disabled] falls back.
+      for (const selector of [".card", "table", "dl.stats div", "button[disabled]", "select", "input"]) {
+        assert.match(rules.get(selector) ?? "", /background:\s*var\(--atlas-bg-surface\)/, `${path} ${selector}`);
+      }
+      // So the secondary lines inside them carry the body token, not the muted one.
+      for (const selector of [".card .meta", ".card label", "table .meta", "dl.stats dt", "button[disabled]"]) {
+        assert.match(rules.get(selector) ?? "", /color:\s*var\(--atlas-fg-default\)/, `${path} ${selector}`);
+      }
+      // The out-of-stock line is a muted line inside a card as well, so the
+      // state pair has to out-specify the repaint instead of losing to it.
+      assert.match(rules.get(".meta.warn") ?? "", /color:\s*var\(--atlas-warning-fg\)/, path);
+      assert.match(rules.get(".warn") ?? "", /background:\s*var\(--atlas-warning-bg\)/, path);
+    }
+  });
+});
+
+test("the pairs the token table cannot reach are recorded as shortfalls", async () => {
+  await withServer(async (_handle, request) => {
+    const css = styleSheet(await (await request("/")).text());
+    for (const [mode, role, foreground, background, threshold] of DOCUMENTED_SHORTFALLS) {
+      const values = tokens(css, mode === "light" ? LIGHT_SELECTOR : DARK_SELECTOR);
+      const ratio = contrast(values[foreground], values[background]);
+      assert.ok(
+        ratio < threshold,
+        `${mode}: ${role} now measures ${ratio.toFixed(2)}:1 against a ${threshold}:1 threshold, so it is no longer a shortfall. ` +
+          "Close the painted pair or amend the contract, then delete this row.",
+      );
+    }
+  });
+});

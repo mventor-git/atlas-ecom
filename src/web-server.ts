@@ -26,7 +26,8 @@ const MAX_BODY_BYTES = 8_192;
  * The shared Atlas UI token set, exactly as `contract.md` v1.1.1 defines it, and
  * nothing else: every colour below resolves to one of these custom properties,
  * so a mode change is one attribute on `<html>` and no second palette to keep in
- * step. `accent.default` is a control surface here, never body text, and each
+ * step. `accent.default` is a control surface here, never body text, `fg.muted` is
+ * a canvas colour because that is the background it was derived against, and each
  * `state.*` token is used as the supplied foreground-on-background pair.
  */
 const STYLE = `
@@ -75,12 +76,16 @@ a { color:var(--atlas-link); text-decoration:underline; }
 .meta { color:var(--atlas-fg-muted); font-size:.85rem; margin:.15rem 0 .5rem; }
 .buy { display:flex; flex-wrap:wrap; gap:.5rem; align-items:end; margin-top:.6rem; }
 label { display:flex; flex-direction:column; font-size:.8rem; color:var(--atlas-fg-muted); gap:.15rem; }
+/* fg.muted is derived against bg.canvas: 4.66:1 there in dark mode and 3.48:1 on
+   bg.surface, which is below AA. So the muted token stays on the canvas and every
+   secondary line a card, a table or a stat tile paints carries fg.default. */
+.card .meta, .card label, table .meta { color:var(--atlas-fg-default); }
 select, input, button { font:inherit; padding:.35rem .5rem; border:1px solid var(--atlas-border-control);
   border-radius:.3rem; background:var(--atlas-bg-surface); color:var(--atlas-fg-default); }
 /* accent.default paints controls; onAccent.default is its only text. */
 button { background:var(--atlas-accent); color:var(--atlas-on-accent);
   border-color:var(--atlas-accent); cursor:pointer; }
-button[disabled] { background:var(--atlas-bg-surface); color:var(--atlas-fg-muted);
+button[disabled] { background:var(--atlas-bg-surface); color:var(--atlas-fg-default);
   border-color:var(--atlas-border-divider); cursor:not-allowed; }
 table { border-collapse:collapse; width:100%; font-size:.9rem; background:var(--atlas-bg-surface); }
 th, td { border:1px solid var(--atlas-border-divider); padding:.35rem .5rem; text-align:left; }
@@ -89,13 +94,15 @@ td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
 img.thumb { width:2.5rem; height:2.5rem; object-fit:cover; border-radius:.2rem; }
 .status { margin:1rem auto; max-width:64rem; font-size:.9rem; }
 .out { color:var(--atlas-danger-fg); background:var(--atlas-danger-bg); }
-.warn { color:var(--atlas-warning-fg); background:var(--atlas-warning-bg); }
+/* A state note keeps its own pair even where it is also a muted line, so the
+   compound selector is what out-specifies the surface repaint above. */
+.warn, .meta.warn { color:var(--atlas-warning-fg); background:var(--atlas-warning-bg); }
 .ok-note { color:var(--atlas-success-fg); background:var(--atlas-success-bg); }
 .status[data-state="error"] { color:var(--atlas-danger-fg); background:var(--atlas-danger-bg); }
 dl.stats { display:flex; flex-wrap:wrap; gap:1.25rem; margin:1rem 0; }
 dl.stats div { border:1px solid var(--atlas-border-divider); background:var(--atlas-bg-surface);
   border-radius:.4rem; padding:.5rem .8rem; }
-dl.stats dt { font-size:.75rem; color:var(--atlas-fg-muted); text-transform:uppercase; letter-spacing:.04em; }
+dl.stats dt { font-size:.75rem; color:var(--atlas-fg-default); text-transform:uppercase; letter-spacing:.04em; }
 dl.stats dd { margin:0; font-size:1.15rem; font-variant-numeric:tabular-nums; }
 form.add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:end; }
 footer { margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--atlas-border-divider);
