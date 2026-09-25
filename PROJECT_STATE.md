@@ -67,6 +67,13 @@ The web slice left no server behind either. `test/web-server.test.ts` starts the
 
 ## Explicitly deferred
 
+- Design tokens. `contract.md` is now at v1.1.0, which adds the shared Atlas UI
+  palette, light/dark support, and a design-token acceptance gate; that is a
+  documentation-only amendment and no code changed with it. The storefront and
+  the `ecom-manager` in `src/web-server.ts` predate the requirement: they carry
+  their own inline colors and no light/dark mode, so they must not be reported
+  as satisfying that gate until the palette is applied as named tokens and
+  checked in both modes.
 - `OrderBook` is still in memory. A connected order is durable only as a receipt row in `connected_orders`; after a restart the book is empty and the order reappears only when the same key is replayed through `ConnectedCheckout`. Nothing scans the table at startup to rebuild it, so `summary()` and `listOrders()` do not reflect prior orders until something replays them.
 - The local commerce path is still entirely in memory. `StandaloneCatalog` products, `Cart` contents, and the order returned by `Cart.checkout()` are lost on restart. Only the connected order command is durable, so local and connected orders now have genuinely different durability and there is no single order store behind both.
 - The dual-write window between Ecom and the peer is open. `reserve`, the peer `POST`, and `complete` are three separate operations with no transaction spanning them, so a crash after the peer accepted the sale but before the receipt was completed leaves a `pending` claim that reports "submission in progress" with no automated recovery. The derived `ecom-${key}` sale id is what keeps a manual recovery from becoming a second peer sale, but recovery itself is currently a manual `abort`. Closing this needs a lease or expiry plus an explicit reconcile step, added when a real crash is in scope.

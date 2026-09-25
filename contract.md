@@ -3,7 +3,7 @@
 ## Metadata
 
 - Product: Atlas Ecom
-- Contract version: 1.0.0
+- Contract version: 1.1.0
 - Status: ACTIVE
 - Date: 2026-09-25
 - Approval date: 2026-09-25
@@ -57,6 +57,33 @@ dependency.
 Connect is share-only by default. Adoption or import of data owned by another
 application is a separate, explicit operation.
 
+## Design tokens
+
+Presentation uses a shared Atlas UI palette, exposed as named tokens or CSS
+variables. The token names and values are the same on every Atlas product
+surface, so a surface moved between products keeps its appearance.
+
+| Token | Mode | Value |
+| --- | --- | --- |
+| background | light | `#F7F2EB` |
+| surface | light | `#EAE2D6` |
+| border | light | `#EEEEEE` |
+| accent | light | `#8B9A6E` |
+| text | light | `#41444B` |
+| background | dark | `#41444B` |
+| surface | dark | `#52575D` |
+| accent | dark | `#CABFAB` |
+| text | dark | `#F7F2EB` |
+| muted text | dark | `#DFD8C8` |
+
+- The accent is an accent, not body text on the light background.
+- `#EEEEEE` is a border/divider token and is not a text color.
+- Implementations expose the palette as named tokens or CSS variables, support
+  both light and dark modes, and keep text readable in both, targeting WCAG AA
+  contrast.
+- Tokens are overridable, and overriding one must not change what any value
+  means to the data.
+
 ## Data and ownership
 
 - Atlas Ecom owns its PostgreSQL database, named `atlas_ecom`.
@@ -85,6 +112,9 @@ application is a separate, explicit operation.
 5. **Degradation and resynchronization:** loss or version mismatch of a peer
    degrades shared behavior without breaking standalone commerce, and the
    connection can resynchronize when service returns.
+6. **Design tokens:** the storefront and `ecom-manager` render the shared
+   palette in light and dark modes with readable contrast and token-based
+   styling.
 
 ## Risks and unknowns
 
@@ -96,9 +126,13 @@ application is a separate, explicit operation.
   commerce operators.
 - Prolonged degradation, cursor retention, and resynchronization behavior need
   validation with realistic data volumes.
+- The current demo storefront and `ecom-manager` predate this contract's token
+  requirement and must not be presented as satisfying the design-token gate
+  until they are tokenized and verified.
 
 ## Amendment history
 
 | Version | Date | Change | Status |
 | --- | --- | --- | --- |
 | 1.0.0 | 2026-09-25 | Initial approved standalone commerce contract, storefront and manager boundaries, Ecom ownership, and embedded connect defaults. | ACTIVE |
+| 1.1.0 | 2026-09-25 | Approved shared Atlas UI palette and light/dark design-token contract. | ACTIVE |
