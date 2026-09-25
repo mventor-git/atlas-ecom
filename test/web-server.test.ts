@@ -1,13 +1,90 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
-import { DEFAULT_WEB_PORT, readWebPort, startWebServer, type WebServerHandle } from "../src/index.ts";
+import {
+  DEFAULT_THEME,
+  DEFAULT_WEB_PORT,
+  readTheme,
+  readWebPort,
+  startWebServer,
+  type WebServerHandle,
+} from "../src/index.ts";
 
 /**
- * Every test drives the real listener over a real socket on an ephemeral port
- * and closes the server before it returns, so a run never leaves a process
- * listening and never collides with a demo server on 4312.
+ * The shared Atlas UI token table from `contract.md` v1.1.1, written out here
+ * rather than imported, so a change to the stylesheet that is not a change to
+ * the approved contract fails the suite.
  */
+const LIGHT_TOKENS: Readonly<Record<string, string>> = {
+  "--atlas-bg-canvas": "#F7F2EB",
+  "--atlas-bg-surface": "#EAE2D6",
+  "--atlas-fg-default": "#2D0000",
+  "--atlas-fg-muted": "#6A2F2F",
+  "--atlas-accent": "#8B9A6E",
+  "--atlas-link": "#2D0000",
+  "--atlas-border-divider": "#EEEEEE",
+  "--atlas-border-control": "#757D6F",
+  "--atlas-on-accent": "#2D0000",
+  "--atlas-focus-ring": "#2D0000",
+  "--atlas-success-fg": "#2A7C13",
+  "--atlas-success-bg": "#C7D3C0",
+  "--atlas-warning-fg": "#2D0000",
+  "--atlas-warning-bg": "#C8A96B",
+  "--atlas-danger-fg": "#6D0808",
+  "--atlas-danger-bg": "#FFDADA",
+  "--atlas-info-fg": "#2D0000",
+  "--atlas-info-bg": "#FBE6C2",
+};
+
+const DARK_TOKENS: Readonly<Record<string, string>> = {
+  "--atlas-bg-canvas": "#41444B",
+  "--atlas-bg-surface": "#52575D",
+  "--atlas-fg-default": "#DFD8C8",
+  "--atlas-fg-muted": "#B7B3A9",
+  "--atlas-accent": "#CABFAB",
+  "--atlas-link": "#DFD8C8",
+  "--atlas-border-divider": "#52575D",
+  "--atlas-border-control": "#9AA394",
+  "--atlas-on-accent": "#41444B",
+  "--atlas-focus-ring": "#DFD8C8",
+  "--atlas-success-fg": "#2D0000",
+  "--atlas-success-bg": "#C7D3C0",
+  "--atlas-warning-fg": "#2D0000",
+  "--atlas-warning-bg": "#C8A96B",
+  "--atlas-danger-fg": "#2D0000",
+  "--atlas-danger-bg": "#FFDADA",
+  "--atlas-info-fg": "#2D0000",
+  "--atlas-info-bg": "#FBE6C2",
+};
+
+const LIGHT_SELECTOR = ':root, [data-theme="light"]';
+const DARK_SELECTOR = '[data-theme="dark"]';
+
+function styleSheet(html: string): string {
+  const match = /<style>([\s\S]*?)<\/style>/.exec(html);
+  assert.ok(match !== null, "the page rendered no stylesheet");
+  return match[1];
+}
+
+/** One CSS rule body, matched on the selector alone so `a` cannot match `a:hover`-ish text. */
+function rule(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(`(?:^|[};])\\s*${escaped}\\s*\\{([^}]*)\\}`, "m").exec(css);
+  assert.ok(match !== null, `the stylesheet has no "${selector}" rule`);
+  return match[1];
+}
+
+function tokens(css: string, selector: string): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const [, name, value] of rule(css, selector).matchAll(/(--atlas-[a-z-]+)\s*:\s*(#[0-9a-fA-F]{3,8})/g)) {
+    found[name] = value.toUpperCase();
+  }
+  return found;
+}
+
+/** Every test drives the real listener over a real socket on an ephemeral port
+ * and closes the server before it returns, so a run never leaves a process
+ * listening and never collides with a demo server on 4312. */
 
 async function withServer<T>(
   run: (handle: WebServerHandle, request: (path: string, init?: RequestInit) => Promise<Response>) => Promise<T>,
@@ -91,7 +168,7 @@ test("the storefront renders cards, real colour and size selectors, prices and v
     assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
     const html = await response.text();
 
-    assert.match(html, /<html lang="en">/);
+    assert.match(html, /<html lang="en" data-theme="light">/);
     assert.match(html, /<h1>Atlas Ecom/);
     assert.match(html, /Aurora Everyday Linen Shirt/);
     // 6 product cards, each with a colour select, a size select and an add control.
@@ -358,5 +435,189 @@ test("an oversized request body is refused instead of buffered", async () => {
     assert.equal(response.status, 413);
     assert.match((await readJson(response)).error, /too large/);
     assert.deepEqual((await readJson(await request("/api/cart"))).lines, []);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Design tokens and the light/dark mode (contract.md v1.1.1)
+// ---------------------------------------------------------------------------
+
+test("both pages carry the whole contract token table in light and dark", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      for (const [query, expected] of [
+        ["", "light"],
+        ["?theme=light", "light"],
+        ["?theme=dark", "dark"],
+      ] as const) {
+        const html = await (await request(`${path}${query}`)).text();
+        const where = `${path}${query}`;
+
+        assert.match(html, new RegExp(`<html lang="en" data-theme="${expected}">`), where);
+        const css = styleSheet(html);
+        // Every named token, in both modes, at the value the contract states.
+        assert.deepEqual(tokens(css, LIGHT_SELECTOR), { ...LIGHT_TOKENS }, `${where} light tokens`);
+        assert.deepEqual(tokens(css, DARK_SELECTOR), { ...DARK_TOKENS }, `${where} dark tokens`);
+      }
+    }
+  });
+});
+
+test("every colour on a page resolves to a token, outside the token table", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      const css = styleSheet(await (await request(path)).text());
+      // With the two token rules removed, not one colour literal may survive.
+      const rest = css
+        .replace(/(?:^|[};])\s*:root,[^{]*\{[^}]*\}/m, "")
+        .replace(/(?:^|[};])\s*\[data-theme="dark"\][^{]*\{[^}]*\}/m, "");
+      assert.doesNotMatch(rest, /#[0-9a-fA-F]{3,8}\b/, `${path} kept a hard-coded colour:\n${rest}`);
+      assert.doesNotMatch(rest, /\b(?:rgba?|hsla?)\(/, `${path} used a colour function instead of a token`);
+      // And every declared token is actually applied, so none is decoration.
+      for (const name of Object.keys(LIGHT_TOKENS)) {
+        assert.match(css, new RegExp(`var\\(${name}\\)`), `${path} declares ${name} but never uses it`);
+      }
+    }
+  });
+});
+
+test("links are underlined and the focus ring comes from the focus token", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager", "/nope"]) {
+      const css = styleSheet(await (await request(path)).text());
+
+      // link.default carries an underline, so it never relies on colour alone.
+      const anchor = rule(css, "a");
+      assert.match(anchor, /color:\s*var\(--atlas-link\)/, path);
+      assert.match(anchor, /text-decoration:\s*underline/, path);
+      // focus.ring is on every keyboard-focusable control.
+      const focus = rule(css, ":focus-visible");
+      assert.match(focus, /outline:[^;]*var\(--atlas-focus-ring\)/, path);
+      // accent.default paints a control and is never the body text colour.
+      assert.match(rule(css, "button"), /background:\s*var\(--atlas-accent\)/, path);
+      assert.match(rule(css, "button"), /color:\s*var\(--atlas-on-accent\)/, path);
+      assert.doesNotMatch(rule(css, "body"), /var\(--atlas-accent\)/, path);
+    }
+  });
+});
+
+test("an absent, empty or unrecognised theme falls back to light", async () => {
+  for (const value of [null, "", "neon", "DARK", " dark", "light "]) {
+    assert.equal(readTheme(value), "light");
+  }
+  assert.equal(readTheme("dark"), "dark");
+  assert.equal(readTheme("light"), "light");
+  assert.equal(DEFAULT_THEME, "light");
+
+  await withServer(async (_handle, request) => {
+    for (const path of ["/", "/manager"]) {
+      for (const query of ["", "?theme=", "?theme=neon", "?theme=DARK"]) {
+        const html = await (await request(`${path}${query}`)).text();
+        assert.match(html, /<html lang="en" data-theme="light">/, `${path}${query}`);
+        // Both palettes stay in the stylesheet; only the applied mode is light.
+        assert.doesNotMatch(html, /<html[^>]*data-theme="dark"/, `${path}${query}`);
+      }
+    }
+  });
+});
+
+test("the theme link and the cross-page link carry the mode and keep the page's parameters", async () => {
+  await withServer(async (handle, request) => {
+    // An empty storefront: the toggle offers dark, and the manager link carries light.
+    let html = await (await request("/")).text();
+    assert.match(html, /<a href="\/\?theme=dark" data-role="theme">Dark mode<\/a>/);
+    assert.match(html, /<a href="\/manager\?theme=light">ecom-manager<\/a>/);
+
+    html = await (await request("/?theme=dark")).text();
+    assert.match(html, /<a href="\/\?theme=light" data-role="theme">Light mode<\/a>/);
+    assert.match(html, /<a href="\/manager\?theme=dark">ecom-manager<\/a>/);
+    // The checkout redirect is built in the page's own mode.
+    assert.match(html, /const THEME = "dark";/);
+
+    html = await (await request("/manager?theme=dark")).text();
+    assert.match(html, /<a href="\/manager\?theme=light" data-role="theme">Light mode<\/a>/);
+    assert.match(html, /<a href="\/\?theme=dark">Storefront<\/a>/);
+    // The add form posts the mode back, so the redirect cannot reset it.
+    assert.match(html, /<input type="hidden" name="theme" value="dark">/);
+
+    // A real order: `order` still renders and still survives the theme toggle.
+    await addToCart(request, { variant_id: "AUR-LIN-SHIRT-NAVY-M", quantity: 1 });
+    const order = (await readJson(
+      await request("/api/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }),
+    )).order as { id: string };
+
+    html = await (await request(`/?order=${order.id}&theme=dark`)).text();
+    assert.match(html, new RegExp(`Order <code>${order.id}</code> placed`));
+    assert.match(html, /<html lang="en" data-theme="dark">/);
+    assert.match(
+      html,
+      new RegExp(`<a href="/\\?order=${order.id}&amp;theme=light" data-role="theme">Light mode</a>`),
+    );
+
+    // A real add: `added` still renders on the manager in the chosen mode.
+    const added = handle.store.catalog.addProduct({ name: "Atlas Tea", price_cents: 900, quantity: 4 });
+    html = await (await request(`/manager?added=${added.id}&theme=dark`)).text();
+    assert.match(html, new RegExp(`Added <code>${added.id}</code>`));
+    assert.match(html, /<html lang="en" data-theme="dark">/);
+    assert.match(
+      html,
+      new RegExp(`<a href="/manager\\?added=${added.id}&amp;theme=light" data-role="theme">Light mode</a>`),
+    );
+  });
+});
+
+test("the manager keeps the chosen mode across the add-product redirect and the error re-render", async () => {
+  await withServer(async (_handle, request) => {
+    const form = { name: "Atlas Coffee", price_cents: "1250", quantity: "10" };
+    const encoded = { "content-type": "application/x-www-form-urlencoded" };
+
+    const added = await request("/manager", {
+      method: "POST",
+      body: new URLSearchParams({ ...form, theme: "dark" }),
+      headers: encoded,
+      redirect: "manual",
+    });
+    assert.equal(added.status, 303);
+    const location = added.headers.get("location") ?? "";
+    assert.match(location, /^\/manager\?added=.+&theme=dark$/);
+    assert.match(await (await request(location)).text(), /<html lang="en" data-theme="dark">/);
+
+    // Bad input re-renders the manager with the reason, still in the same mode.
+    const bad = await request("/manager", {
+      method: "POST",
+      body: new URLSearchParams({ name: "Bad", price_cents: "not-a-price", quantity: "1", theme: "dark" }),
+      headers: encoded,
+    });
+    assert.equal(bad.status, 400);
+    const html = await bad.text();
+    assert.match(html, /Product price_cents must be an integer of at least 0/);
+    assert.match(html, /<html lang="en" data-theme="dark">/);
+
+    // No mode posted means the default, and the page is still light.
+    const plain = await request("/manager", {
+      method: "POST",
+      body: new URLSearchParams({ ...form, name: "Atlas Cocoa" }),
+      headers: encoded,
+      redirect: "manual",
+    });
+    assert.match(plain.headers.get("location") ?? "", /&theme=light$/);
+  });
+});
+
+test("the theme parameter reaches the pages only and leaves the JSON API alone", async () => {
+  await withServer(async (_handle, request) => {
+    for (const path of ["/api/health", "/api/catalog", "/api/cart", "/api/orders"]) {
+      const plain = await readJson(await request(path));
+      const themed = await readJson(await request(`${path}?theme=dark`));
+      assert.deepEqual(themed, plain, path);
+      assert.equal("theme" in themed, false, path);
+    }
+
+    // An error page honours the mode too, and links back in it.
+    const error = await request("/?theme=dark", { method: "POST", body: "" });
+    assert.equal(error.status, 405);
+    const html = await error.text();
+    assert.match(html, /<html lang="en" data-theme="dark">/);
+    assert.match(html, /<a href="\/manager\?theme=dark">ecom-manager<\/a>/);
   });
 });

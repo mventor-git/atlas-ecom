@@ -22,45 +22,98 @@ const WEB_HOST = "127.0.0.1";
 /** A form or a JSON blob for one interaction; anything larger is not this slice. */
 const MAX_BODY_BYTES = 8_192;
 
+/**
+ * The shared Atlas UI token set, exactly as `contract.md` v1.1.1 defines it, and
+ * nothing else: every colour below resolves to one of these custom properties,
+ * so a mode change is one attribute on `<html>` and no second palette to keep in
+ * step. `accent.default` is a control surface here, never body text, and each
+ * `state.*` token is used as the supplied foreground-on-background pair.
+ */
 const STYLE = `
-:root { color-scheme: light; --line:#d9d4cb; --ink:#1b1a18; --muted:#6d6862; --bad:#a3341f; --ok:#2c6a45; }
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --atlas-bg-canvas: #F7F2EB; --atlas-bg-surface: #EAE2D6;
+  --atlas-fg-default: #2D0000; --atlas-fg-muted: #6A2F2F;
+  --atlas-accent: #8B9A6E; --atlas-link: #2D0000;
+  --atlas-border-divider: #EEEEEE; --atlas-border-control: #757D6F;
+  --atlas-on-accent: #2D0000; --atlas-focus-ring: #2D0000;
+  --atlas-success-fg: #2A7C13; --atlas-success-bg: #C7D3C0;
+  --atlas-warning-fg: #2D0000; --atlas-warning-bg: #C8A96B;
+  --atlas-danger-fg: #6D0808; --atlas-danger-bg: #FFDADA;
+  --atlas-info-fg: #2D0000; --atlas-info-bg: #FBE6C2;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --atlas-bg-canvas: #41444B; --atlas-bg-surface: #52575D;
+  --atlas-fg-default: #DFD8C8; --atlas-fg-muted: #B7B3A9;
+  --atlas-accent: #CABFAB; --atlas-link: #DFD8C8;
+  --atlas-border-divider: #52575D; --atlas-border-control: #9AA394;
+  --atlas-on-accent: #41444B; --atlas-focus-ring: #DFD8C8;
+  --atlas-success-fg: #2D0000; --atlas-success-bg: #C7D3C0;
+  --atlas-warning-fg: #2D0000; --atlas-warning-bg: #C8A96B;
+  --atlas-danger-fg: #2D0000; --atlas-danger-bg: #FFDADA;
+  --atlas-info-fg: #2D0000; --atlas-info-bg: #FBE6C2;
+}
 * { box-sizing: border-box; }
-body { margin:0; padding:0 1rem 3rem; background:#faf9f7; color:var(--ink);
+body { margin:0; padding:0 1rem 3rem; background:var(--atlas-bg-canvas); color:var(--atlas-fg-default);
   font:16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
 header, main, footer { max-width:64rem; margin:0 auto; }
 h1 { font-size:1.5rem; margin:1.25rem 0 .25rem; }
 h2 { font-size:1.15rem; margin:2rem 0 .5rem; }
 h3 { font-size:1rem; margin:0 0 .25rem; }
-a { color:#1a4f8a; }
-.demo { border:1px solid #d8c48a; background:#fdf6e3; color:#6b4f12;
-  padding:.6rem .8rem; border-radius:.4rem; font-size:.9rem; }
+/* link.default keeps its underline, so it never relies on colour alone. */
+a { color:var(--atlas-link); text-decoration:underline; }
+/* focus.ring reaches every keyboard-focusable control. */
+:focus-visible { outline:2px solid var(--atlas-focus-ring); outline-offset:2px; }
+.demo { color:var(--atlas-info-fg); background:var(--atlas-info-bg);
+  border:1px solid var(--atlas-border-control); padding:.6rem .8rem; border-radius:.4rem; font-size:.9rem; }
 .grid { display:grid; gap:1rem; grid-template-columns:repeat(auto-fill, minmax(19rem, 1fr)); }
-.card { border:1px solid var(--line); background:#fff; border-radius:.5rem; padding:.9rem; }
-.card img { width:100%; height:11rem; object-fit:cover; border-radius:.35rem; background:#efece7; }
-.meta { color:var(--muted); font-size:.85rem; margin:.15rem 0 .5rem; }
+.card { border:1px solid var(--atlas-border-divider); background:var(--atlas-bg-surface);
+  border-radius:.5rem; padding:.9rem; }
+.card img { width:100%; height:11rem; object-fit:cover; border-radius:.35rem;
+  background:var(--atlas-border-divider); }
+.meta { color:var(--atlas-fg-muted); font-size:.85rem; margin:.15rem 0 .5rem; }
 .buy { display:flex; flex-wrap:wrap; gap:.5rem; align-items:end; margin-top:.6rem; }
-label { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:.15rem; }
-select, input, button { font:inherit; padding:.35rem .5rem; border:1px solid var(--line);
-  border-radius:.3rem; background:#fff; }
-button { background:#1b1a18; color:#fff; border-color:#1b1a18; cursor:pointer; }
-button[disabled] { background:#b8b2a9; border-color:#b8b2a9; cursor:not-allowed; }
-table { border-collapse:collapse; width:100%; font-size:.9rem; background:#fff; }
-th, td { border:1px solid var(--line); padding:.35rem .5rem; text-align:left; }
-th { background:#f2efe9; }
+label { display:flex; flex-direction:column; font-size:.8rem; color:var(--atlas-fg-muted); gap:.15rem; }
+select, input, button { font:inherit; padding:.35rem .5rem; border:1px solid var(--atlas-border-control);
+  border-radius:.3rem; background:var(--atlas-bg-surface); color:var(--atlas-fg-default); }
+/* accent.default paints controls; onAccent.default is its only text. */
+button { background:var(--atlas-accent); color:var(--atlas-on-accent);
+  border-color:var(--atlas-accent); cursor:pointer; }
+button[disabled] { background:var(--atlas-bg-surface); color:var(--atlas-fg-muted);
+  border-color:var(--atlas-border-divider); cursor:not-allowed; }
+table { border-collapse:collapse; width:100%; font-size:.9rem; background:var(--atlas-bg-surface); }
+th, td { border:1px solid var(--atlas-border-divider); padding:.35rem .5rem; text-align:left; }
+th { background:var(--atlas-bg-canvas); }
 td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
 img.thumb { width:2.5rem; height:2.5rem; object-fit:cover; border-radius:.2rem; }
-.status { margin:1rem auto; max-width:64rem; font-size:.9rem; color:var(--ok); }
-.status[data-state="error"] { color:var(--bad); }
-.out { color:var(--bad); }
-.ok-note { color:var(--ok); }
+.status { margin:1rem auto; max-width:64rem; font-size:.9rem; }
+.out { color:var(--atlas-danger-fg); background:var(--atlas-danger-bg); }
+.warn { color:var(--atlas-warning-fg); background:var(--atlas-warning-bg); }
+.ok-note { color:var(--atlas-success-fg); background:var(--atlas-success-bg); }
+.status[data-state="error"] { color:var(--atlas-danger-fg); background:var(--atlas-danger-bg); }
 dl.stats { display:flex; flex-wrap:wrap; gap:1.25rem; margin:1rem 0; }
-dl.stats div { border:1px solid var(--line); background:#fff; border-radius:.4rem; padding:.5rem .8rem; }
-dl.stats dt { font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+dl.stats div { border:1px solid var(--atlas-border-divider); background:var(--atlas-bg-surface);
+  border-radius:.4rem; padding:.5rem .8rem; }
+dl.stats dt { font-size:.75rem; color:var(--atlas-fg-muted); text-transform:uppercase; letter-spacing:.04em; }
 dl.stats dd { margin:0; font-size:1.15rem; font-variant-numeric:tabular-nums; }
 form.add { display:flex; flex-wrap:wrap; gap:.5rem; align-items:end; }
-footer { margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--line);
-  font-size:.85rem; color:var(--muted); }
+footer { margin-top:2.5rem; padding-top:1rem; border-top:1px solid var(--atlas-border-divider);
+  font-size:.85rem; color:var(--atlas-fg-muted); }
 `;
+
+export type Theme = "light" | "dark";
+
+/** The contract states one light/dark pair, and the light pair is the default. */
+export const DEFAULT_THEME: Theme = "light";
+
+/**
+ * Only an explicit `dark` selects dark. Absent, empty and unrecognised values
+ * fall back to light rather than erroring, so a bad link still renders a page.
+ */
+export function readTheme(value: string | null | undefined): Theme {
+  return value === "dark" ? "dark" : "light";
+}
 
 /** JSON-escapes and HTML-escapes in one pass; every dynamic value goes through it. */
 function escapeHtml(value: unknown): string {
@@ -220,6 +273,31 @@ function catalogCounts(views: readonly ProductView[]): CatalogCounts {
 // Pages
 // ---------------------------------------------------------------------------
 
+/**
+ * A page link that keeps its own query parameters and sets the theme, so the
+ * `order` and `added` parameters a page already understands survive the walk
+ * through the theme toggle and the link to the other page.
+ */
+function themedPath(
+  path: string,
+  theme: Theme,
+  extra: Readonly<Record<string, string | undefined>> = {},
+): string {
+  const search = new URLSearchParams();
+  for (const [name, value] of Object.entries(extra)) {
+    if (value !== undefined && value !== "") search.set(name, value);
+  }
+  search.set("theme", theme);
+  return `${path}?${search.toString()}`;
+}
+
+/** The one control that changes the mode: a link to the same page in the other one. */
+function themeLink(path: string, theme: Theme, extra: Readonly<Record<string, string | undefined>> = {}): string {
+  const next: Theme = theme === "light" ? "dark" : "light";
+  const label = next === "dark" ? "Dark mode" : "Light mode";
+  return `<a href="${escapeHtml(themedPath(path, next, extra))}" data-role="theme">${label}</a>`;
+}
+
 function demoBanner(counts: CatalogCounts): string {
   return `<p class="demo" role="note"><strong>Demo slice, in memory.</strong> The catalogue is the example data from
     <code>db/seed.sql</code> (${escapeHtml(String(counts.products))} products,
@@ -292,7 +370,7 @@ const STOREFRONT_SCRIPT = `<script>
       stock.textContent = available > 0
         ? color.value + " / " + chosen.label + " — " + available + " available"
         : "Out of stock in " + color.value;
-      stock.className = available > 0 ? "meta" : "meta out";
+      stock.className = available > 0 ? "meta" : "meta warn";
       add.disabled = available < 1;
     };
 
@@ -313,7 +391,7 @@ const STOREFRONT_SCRIPT = `<script>
 })();
 </script>`;
 
-function storefrontPage(store: DemoStore, orderId: string | undefined): string {
+function storefrontPage(store: DemoStore, orderId: string | undefined, theme: Theme = DEFAULT_THEME): string {
   const views = catalogViews(store).filter((view) => view.variants.some((variant) => variant.product.active));
   const lines = store.cart.listLines();
   const placed = orderId === undefined ? undefined : store.orderBook.getOrder(orderId);
@@ -366,7 +444,7 @@ function storefrontPage(store: DemoStore, orderId: string | undefined): string {
     .join("");
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="${escapeHtml(theme)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -376,8 +454,9 @@ function storefrontPage(store: DemoStore, orderId: string | undefined): string {
 <body>
 <header>
   <h1>Atlas Ecom <span class="meta">storefront</span></h1>
-  <p class="meta"><a href="/manager">ecom-manager</a> &middot; <a href="/api/health">/api/health</a> &middot;
-    <a href="/api/catalog">/api/catalog</a> &middot; <a href="/api/orders">/api/orders</a></p>
+  <p class="meta"><a href="${escapeHtml(themedPath("/manager", theme))}">ecom-manager</a> &middot; <a href="/api/health">/api/health</a> &middot;
+    <a href="/api/catalog">/api/catalog</a> &middot; <a href="/api/orders">/api/orders</a> &middot;
+    ${themeLink("/", theme, { order: orderId })}</p>
   ${demoBanner(catalogCounts(views))}
   ${banner}
   <h2>Cart</h2>
@@ -397,6 +476,7 @@ function storefrontPage(store: DemoStore, orderId: string | undefined): string {
 </footer>
 <script>
 (() => {
+  const THEME = ${JSON.stringify(theme)};
   const button = document.querySelector("[data-role=checkout]");
   if (!button) return;
   button.addEventListener("click", async () => {
@@ -409,7 +489,9 @@ function storefrontPage(store: DemoStore, orderId: string | undefined): string {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Checkout failed");
-      location.href = "/?order=" + encodeURIComponent(data.order.id);
+      // The theme is carried through the redirect, so the confirmation is in the
+      // mode the shopper is already in.
+      location.href = "/?order=" + encodeURIComponent(data.order.id) + "&theme=" + encodeURIComponent(THEME);
     } catch (error) {
       button.disabled = false;
       const node = document.querySelector("[data-role=status]");
@@ -427,6 +509,7 @@ ${STOREFRONT_SCRIPT}
 function managerPage(
   store: DemoStore,
   notices: { error?: string; added?: string } = {},
+  theme: Theme = DEFAULT_THEME,
 ): string {
   const views = catalogViews(store);
   const counts = catalogCounts(views);
@@ -442,7 +525,7 @@ function managerPage(
         <td>${escapeHtml(variant.color)}</td>
         <td>${escapeHtml(variant.size)}</td>
         <td class="num">${escapeHtml(formatCents(variant.product.price_cents))}</td>
-        <td class="num${variant.product.active && variant.product.quantity === 0 ? " out" : ""}">${escapeHtml(String(variant.product.quantity))}</td>
+        <td class="num${variant.product.active && variant.product.quantity === 0 ? " warn" : ""}">${escapeHtml(String(variant.product.quantity))}</td>
         <td>${variant.product.active ? "active" : '<span class="out">inactive</span>'}</td>
       </tr>`,
     )
@@ -465,7 +548,7 @@ function managerPage(
           .join("");
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="${escapeHtml(theme)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -475,8 +558,9 @@ function managerPage(
 <body>
 <header>
   <h1>ecom-manager</h1>
-  <p class="meta"><a href="/">Storefront</a> &middot; <a href="/api/health">/api/health</a> &middot;
-    <a href="/api/orders">/api/orders</a> &middot; <a href="/api/cart">/api/cart</a></p>
+  <p class="meta"><a href="${escapeHtml(themedPath("/", theme))}">Storefront</a> &middot; <a href="/api/health">/api/health</a> &middot;
+    <a href="/api/orders">/api/orders</a> &middot; <a href="/api/cart">/api/cart</a> &middot;
+    ${themeLink("/manager", theme, { added: notices.added })}</p>
   ${demoBanner(counts)}
   ${notices.error === undefined ? "" : `<p class="demo out" role="alert">${escapeHtml(notices.error)}</p>`}
   ${notices.added === undefined ? "" : `<p class="demo ok-note" role="status">Added <code>${escapeHtml(notices.added)}</code> to the in-memory catalogue. It is not written to a database.</p>`}
@@ -494,6 +578,7 @@ function managerPage(
   <p class="meta">The standalone branch of Add Product: written straight into the in-memory catalogue, because no
     peer is paired. With a peer holding the capability this would become a proposal instead.</p>
   <form class="add" method="post" action="/manager">
+    <input type="hidden" name="theme" value="${escapeHtml(theme)}">
     <label>Name <input name="name" required maxlength="80" placeholder="Atlas Coffee"></label>
     <label>Price (integer cents) <input name="price_cents" type="number" min="0" step="1" value="1250" required></label>
     <label>Quantity <input name="quantity" type="number" min="0" step="1" value="10" required></label>
@@ -528,13 +613,13 @@ function managerPage(
 </html>`;
 }
 
-function errorPage(status: number, message: string): string {
+function errorPage(status: number, message: string, theme: Theme = DEFAULT_THEME): string {
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="${escapeHtml(theme)}">
 <head><meta charset="utf-8"><title>Atlas Ecom &middot; ${escapeHtml(status)}</title><style>${STYLE}</style></head>
 <body>
 <header><h1>${escapeHtml(status)}</h1><p class="demo" role="alert">${escapeHtml(message)}</p>
-<p class="meta"><a href="/">Storefront</a> &middot; <a href="/manager">ecom-manager</a></p></header>
+<p class="meta"><a href="${escapeHtml(themedPath("/", theme))}">Storefront</a> &middot; <a href="${escapeHtml(themedPath("/manager", theme))}">ecom-manager</a></p></header>
 </body>
 </html>`;
 }
@@ -730,25 +815,30 @@ export function createWebRequestListener(store: DemoStore = createDemoStore()) {
     const url = new URL(req.url ?? "/", `http://${WEB_HOST}`);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     const method = req.method ?? "GET";
+    const theme = readTheme(url.searchParams.get("theme"));
 
     try {
       if (path === "/") {
         if (method !== "GET") throw new HttpError(405, "The storefront only answers GET");
         const orderId = url.searchParams.get("order");
-        sendHtml(res, 200, storefrontPage(store, orderId === null || orderId === "" ? undefined : orderId));
+        sendHtml(res, 200, storefrontPage(store, orderId === null || orderId === "" ? undefined : orderId, theme));
         return;
       }
       if (path === "/manager") {
         if (method === "GET") {
           const added = url.searchParams.get("added");
-          sendHtml(res, 200, managerPage(store, { added: added === null || added === "" ? undefined : added }));
+          sendHtml(res, 200, managerPage(store, { added: added === null || added === "" ? undefined : added }, theme));
           return;
         }
         if (method === "POST") {
           // Add Product, standalone branch. Invalid input re-renders the page
           // with the message rather than throwing the operator to an error page.
+          let fields: Map<string, string> = new Map();
+          // The mode rides in a hidden field, so neither the 303 nor the 400 resets it.
+          let posted = theme;
           try {
-            const fields = await readFormBody(req);
+            fields = await readFormBody(req);
+            posted = readTheme(fields.get("theme") ?? theme);
             const product = clientError(() =>
               store.catalog.addProduct({
                 name: requireField(fields, "name"),
@@ -756,10 +846,10 @@ export function createWebRequestListener(store: DemoStore = createDemoStore()) {
                 quantity: Number(requireField(fields, "quantity")),
               }),
             );
-            res.writeHead(303, { location: `/manager?added=${encodeURIComponent(product.id)}` });
+            res.writeHead(303, { location: `/manager?added=${encodeURIComponent(product.id)}&theme=${posted}` });
             res.end();
           } catch (error) {
-            sendHtml(res, 400, managerPage(store, { error: error instanceof Error ? error.message : "Bad request" }));
+            sendHtml(res, 400, managerPage(store, { error: error instanceof Error ? error.message : "Bad request" }, posted));
           }
           return;
         }
@@ -772,7 +862,7 @@ export function createWebRequestListener(store: DemoStore = createDemoStore()) {
       if (path.startsWith("/api/")) {
         sendJson(res, status, { error: message });
       } else {
-        sendHtml(res, status, errorPage(status, message));
+        sendHtml(res, status, errorPage(status, message, theme));
       }
     }
   };
