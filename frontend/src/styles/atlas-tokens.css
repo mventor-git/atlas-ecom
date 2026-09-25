@@ -1,0 +1,270 @@
+/*
+ * The Atlas UI token bridge for Ecom.
+ *
+ * `contract.md` v1.1.1 is the semantic authority: the `--atlas-*` values below
+ * are the shared Atlas UI token table, and the shadcn/Tailwind variables that
+ * follow are a derived mapping onto it, not a second palette. The v1.2.0
+ * mapping is fixed, so the storefront, the ecom-manager, and the sibling product
+ * stay identical on any shared surface.
+ *
+ * Rules this file obeys, and why:
+ *
+ * - Every colour in the app resolves to a variable declared here. The two token
+ *   blocks are the only place a literal value is allowed to exist, so
+ *   `atlas-tokens.test.ts` fails if a value ever lands in a component.
+ * - The mode is one class on `<html>`, set before paint, so a reload in the
+ *   chosen mode never flashes the other one.
+ * - `accent.default` is a control surface and never body text on the canvas.
+ * - `fg.muted` was derived against `bg.canvas`, so it is a canvas colour. The
+ *   `.on-surface` repaint below is what keeps it off a `bg.surface`, where it
+ *   measures 3.48:1 in dark and is not a normal-text pair.
+ * - `border.divider` is decorative and low contrast by design. It separates
+ *   content; it is never a control boundary and never a text colour.
+ * - `border.control` is the control boundary. It was also derived against the
+ *   canvas, so a control that sits on a surface paints the canvas as its own
+ *   background. That is the canvas-safe control border treatment: the boundary
+ *   is never asked to clear 3:1 against a background it was not derived for.
+ * - Each `state.*` token is a foreground on a background, used as supplied.
+ *   `state.success.text` is `#2D0000` in both modes because the supplied light
+ *   foreground is 3.38:1 and is not a normal-text pair; `state.success.indicator`
+ *   keeps the supplied `#2A7C13` as the non-text marker beside that text.
+ * - `focus.ring` reaches every keyboard-focusable control.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* --------------------------------------------------------------------------
+ * The shared Atlas UI token table. Light is the default; `.dark` is the only
+ * other mode, and a page with no class is light rather than unstyled.
+ * ----------------------------------------------------------------------- */
+
+:root,
+.dark {
+  color-scheme: light;
+  --atlas-radius: 0.5rem;
+}
+
+:root {
+  --atlas-bg-canvas: #f7f2eb;
+  --atlas-bg-surface: #eae2d6;
+  --atlas-fg-default: #2d0000;
+  /* Derived: the contrast check returned 9.15:1 on bg.canvas, not supplied. */
+  --atlas-fg-muted: #6a2f2f;
+  --atlas-accent: #8b9a6e;
+  --atlas-on-accent: #2d0000;
+  --atlas-link: #2d0000;
+  --atlas-border-divider: #eeeeee;
+  --atlas-border-control: #757d6f;
+  --atlas-focus-ring: #2d0000;
+  --atlas-success-fg: #2a7c13;
+  --atlas-success-bg: #c7d3c0;
+  --atlas-warning-fg: #2d0000;
+  --atlas-warning-bg: #c8a96b;
+  --atlas-danger-fg: #6d0808;
+  --atlas-danger-bg: #ffdada;
+  --atlas-info-fg: #2d0000;
+  --atlas-info-bg: #fbe6c2;
+  --atlas-success-text: #2d0000;
+  --atlas-success-indicator: #2a7c13;
+}
+
+.dark {
+  color-scheme: dark;
+  --atlas-bg-canvas: #41444b;
+  --atlas-bg-surface: #52575d;
+  --atlas-fg-default: #dfd8c8;
+  /* Derived: 4.66:1 on bg.canvas, 3.48:1 on bg.surface, so canvas only. */
+  --atlas-fg-muted: #b7b3a9;
+  --atlas-accent: #cabfab;
+  --atlas-on-accent: #41444b;
+  --atlas-link: #dfd8c8;
+  --atlas-border-divider: #52575d;
+  /* Derived: 3.73:1 on bg.canvas, 2.79:1 on bg.surface, so canvas only. */
+  --atlas-border-control: #9aa394;
+  --atlas-focus-ring: #dfd8c8;
+  --atlas-success-fg: #2d0000;
+  --atlas-success-bg: #c7d3c0;
+  --atlas-warning-fg: #2d0000;
+  --atlas-warning-bg: #c8a96b;
+  --atlas-danger-fg: #2d0000;
+  --atlas-danger-bg: #ffdada;
+  --atlas-info-fg: #2d0000;
+  --atlas-info-bg: #fbe6c2;
+  --atlas-success-text: #2d0000;
+  --atlas-success-indicator: #2d0000;
+}
+
+/* --------------------------------------------------------------------------
+ * The fixed v1.2.0 shadcn mapping. The first nine rows are the contract's table
+ * verbatim; everything after them is a shadcn variable the components reference
+ * that the table does not name, resolved to the Atlas token that means the same
+ * thing rather than left at a shadcn default.
+ * ----------------------------------------------------------------------- */
+
+:root {
+  /* contract v1.2.0, required mapping */
+  --background: var(--atlas-bg-canvas); /* bg.canvas */
+  --foreground: var(--atlas-fg-default); /* fg.default */
+  --card: var(--atlas-bg-surface); /* bg.surface */
+  --primary: var(--atlas-accent); /* accent.default */
+  --primary-foreground: var(--atlas-on-accent); /* onAccent.default */
+  --muted-foreground: var(--atlas-fg-muted); /* fg.muted, canvas use only */
+  --border: var(--atlas-border-divider); /* border.divider */
+  --input: var(--atlas-border-control); /* border.control */
+  --ring: var(--atlas-focus-ring); /* focus.ring */
+
+  /* the four shadcn state variables, each the token pair as supplied */
+  --success: var(--atlas-success-bg);
+  --success-foreground: var(--atlas-success-text);
+  --success-indicator: var(--atlas-success-indicator);
+  --warning: var(--atlas-warning-bg);
+  --warning-foreground: var(--atlas-warning-fg);
+  --danger: var(--atlas-danger-bg);
+  --danger-foreground: var(--atlas-danger-fg);
+  --info: var(--atlas-info-bg);
+  --info-foreground: var(--atlas-info-fg);
+
+  /* Unnamed shadcn variables. `--accent` is shadcn's quiet hover fill, not
+     Atlas `accent.default`, which the contract sends to `--primary`; naming both
+     is why the two tables stay distinguishable. */
+  --card-foreground: var(--atlas-fg-default);
+  --popover: var(--atlas-bg-surface);
+  --popover-foreground: var(--atlas-fg-default);
+  --secondary: var(--atlas-bg-surface);
+  --secondary-foreground: var(--atlas-fg-default);
+  --muted: var(--atlas-bg-surface);
+  --accent: var(--atlas-bg-surface);
+  --accent-foreground: var(--atlas-fg-default);
+  --destructive: var(--atlas-danger-bg);
+  --destructive-foreground: var(--atlas-danger-fg);
+  --radius: var(--atlas-radius);
+  /* shadcn's chart ramp has no Atlas counterpart and no chart is drawn, so it
+     resolves to the canvas and surface rather than to a private palette. */
+  --chart-1: var(--atlas-bg-surface);
+  --chart-2: var(--atlas-fg-muted);
+  --chart-3: var(--atlas-border-control);
+  --chart-4: var(--atlas-fg-default);
+  --chart-5: var(--atlas-accent);
+}
+
+/* Tailwind's colour utilities read these, so a `bg-primary` in a component
+   resolves through the mapping above and never needs a literal of its own. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-indicator: var(--success-indicator);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-link: var(--atlas-link);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-sans);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* --------------------------------------------------------------------------
+ * Base. The default border is the decorative divider, and the focus ring comes
+ * from focus.ring on every keyboard-focusable control.
+ * ----------------------------------------------------------------------- */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  /* A link carries its underline, so it never relies on colour alone. */
+  a {
+    @apply text-link underline underline-offset-2;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+
+  /* Tailwind's shadow utilities fall back to a literal black at 10%. The token
+     table has no shadow token, so a shadow borrows fg.default at the same alpha:
+     that keeps the last colour literal in the built CSS inside this one file. */
+  *,
+  ::before,
+  ::after {
+    --tw-shadow-color: color-mix(in srgb, var(--atlas-fg-default) 10%, transparent);
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * Token placement.
+ *
+ * `fg.muted` and `border.control` were both derived against `bg.canvas`, so
+ * these three rules are where that derivation is honoured. They are the same
+ * corrections the server-rendered pages carry, applied to shadcn's markup
+ * instead of hand-written rules.
+ * ----------------------------------------------------------------------- */
+
+/* Muted text inside a surface repaints to fg.default, because the muted token
+   is not a normal-text pair there. A state note keeps its own pair: the
+   compound selector out-specifies this repaint rather than losing it. */
+.on-surface .text-muted-foreground {
+  color: var(--foreground);
+}
+
+.on-surface .text-muted-foreground.state-note {
+  color: inherit;
+}
+
+/* Canvas-safe control border: a control that sits on a surface paints the canvas
+   as its own background, so border.control keeps the 3:1 it was derived for. */
+.on-surface [data-slot="input"],
+.on-surface [data-slot="select-trigger"] {
+  background-color: var(--background);
+}
+
+/* A control that does paint a surface takes an explicit control edge, so its
+   boundary never has to separate surface from surface. */
+.on-surface [data-slot="button"][data-variant="secondary"],
+.on-surface [data-slot="button"][data-variant="outline"],
+.on-surface [data-slot="badge"][data-variant="secondary"] {
+  border-color: var(--input);
+}

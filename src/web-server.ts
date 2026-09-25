@@ -276,6 +276,18 @@ function catalogCounts(views: readonly ProductView[]): CatalogCounts {
   };
 }
 
+/** Where the seeded half of the catalogue came from, reported on every catalogue response. */
+const CATALOG_SOURCE = "db/seed.sql example data";
+
+/**
+ * What every catalogue response carries, so the read and the write cannot drift
+ * on the mode or the counts. `counts` is recomputed per response because Add
+ * Product changes them.
+ */
+function catalogEnvelope(counts: CatalogCounts): Record<string, unknown> {
+  return { mode: "demo", in_memory: true, source: CATALOG_SOURCE, counts };
+}
+
 // ---------------------------------------------------------------------------
 // Pages
 // ---------------------------------------------------------------------------
@@ -708,6 +720,19 @@ function requireCount(value: unknown, label: string, minimum: number): number {
   return value;
 }
 
+/**
+ * A catalogue write field has to be a JSON number before the domain sees it, so a
+ * string, a null or a boolean is refused here rather than coerced. What a valid
+ * price or quantity *is* stays the domain's answer, which is why this route and
+ * the form post on /manager return the same message for the same bad input.
+ */
+function requireNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new HttpError(400, `${label} must be a number`);
+  }
+  return value;
+}
+
 function cartJson(store: DemoStore): Record<string, unknown> {
   const lines = store.cart.listLines();
   return {
@@ -737,7 +762,7 @@ function checkoutJson(store: DemoStore, order: Order): Record<string, unknown> {
 /** Every API path, with the methods it answers, so an unknown route is a 404. */
 const API_ROUTES: Readonly<Record<string, readonly string[]>> = {
   "/api/health": ["GET"],
-  "/api/catalog": ["GET"],
+  "/api/catalog": ["GET", "POST"],
   "/api/cart": ["GET", "POST"],
   "/api/orders": ["GET"],
   "/api/checkout": ["POST"],
@@ -766,7 +791,7 @@ async function handleApi(
         in_memory: true,
         database: "none",
         peer_connected: false,
-        source: "db/seed.sql example data",
+        source: CATALOG_SOURCE,
         catalog: catalogCounts(views),
         cart: { item_count: cartCount(store.cart.listLines()), total_cents: store.cart.totalCents() },
         orders: store.orderBook.summary(),
@@ -775,13 +800,29 @@ async function handleApi(
     }
     case "GET /api/catalog": {
       const views = catalogViews(store);
-      sendJson(res, 200, {
-        mode: "demo",
-        in_memory: true,
-        source: "db/seed.sql example data",
-        counts: catalogCounts(views),
-        products: views.map(productJson),
-      });
+      sendJson(res, 200, { ...catalogEnvelope(catalogCounts(views)), products: views.map(productJson) });
+      return;
+    }
+    case "POST /api/catalog": {
+      // Add Product, standalone branch, as JSON for the ecom-manager frontend.
+      // The form post on /manager is the same write with an HTML answer; both end
+      // in `StandaloneCatalog.addProduct`, so they validate identically.
+      const body = await readJsonBody(req);
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (name === "") throw new HttpError(400, "name is required");
+      const product = clientError(() =>
+        store.catalog.addProduct({
+          name,
+          price_cents: requireNumber(body.price_cents, "price_cents"),
+          quantity: requireNumber(body.quantity, "quantity"),
+        }),
+      );
+      // The counts are read back rather than incremented, so the response is the
+      // catalogue as it now is and not the catalogue plus one guess.
+      const views = catalogViews(store);
+      const created = views.find((view) => view.id === product.id);
+      if (created === undefined) throw new HttpError(500, "The created product is missing from the catalogue");
+      sendJson(res, 201, { ...catalogEnvelope(catalogCounts(views)), product: productJson(created) });
       return;
     }
     case "GET /api/cart": {

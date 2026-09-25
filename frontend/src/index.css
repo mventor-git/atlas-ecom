@@ -1,0 +1,13 @@
+/*
+ * Imports only. Every colour value, the shadcn variable mapping, and the token
+ * placement rules live in `@/styles/atlas-tokens.css`, so there is one place a
+ * value can exist and `atlas-tokens.test.ts` has one file to hold to account.
+ *
+ * Re-running `npx shadcn add <component>` appends its own `:root` / `.dark`
+ * blocks with shadcn's default palette to THIS file. Do not commit them: delete
+ * the appended blocks and keep the colour bridge in `atlas-tokens.css`.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@/styles/atlas-tokens.css";

@@ -113,6 +113,14 @@ function addToCart(request: (path: string, init?: RequestInit) => Promise<Respon
   });
 }
 
+function createProduct(request: (path: string, init?: RequestInit) => Promise<Response>, body: unknown) {
+  return request("/api/catalog", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  });
+}
+
 test("the health route reports the demo catalogue without a database", async () => {
   await withServer(async (_handle, request) => {
     const response = await request("/api/health");
@@ -252,6 +260,118 @@ test("the manager re-renders with the reason instead of discarding bad input", a
     const html = await response.text();
     assert.match(html, /Product price_cents must be an integer of at least 0/);
     assert.match(html, /<h1>ecom-manager<\/h1>/);
+  });
+});
+
+test("the catalog route creates a product as JSON and reports the new counts", async () => {
+  await withServer(async (handle, request) => {
+    const before = await readJson(await request("/api/catalog"));
+    assert.equal(before.counts.products, 6);
+    assert.equal(before.counts.variants, 37);
+
+    const response = await createProduct(request, { name: "Atlas Coffee", price_cents: 1250, quantity: 10 });
+    assert.equal(response.status, 201);
+    const created = await readJson(response);
+
+    // The envelope matches the read route, so one parser covers both.
+    assert.equal(created.mode, "demo");
+    assert.equal(created.in_memory, true);
+    assert.equal(created.source, before.source);
+    // The counts are read back from the catalogue, not incremented by one.
+    assert.deepEqual(created.counts, { products: 7, variants: 38, sellable_variants: 36, unavailable_variants: 2 });
+
+    // The created product comes back in the same shape the read route uses.
+    const product = created.product;
+    assert.equal(product.name, "Atlas Coffee");
+    assert.equal(product.sku, product.id.slice(0, 8));
+    assert.equal(product.active, true);
+    assert.equal(product.variants.length, 1);
+    assert.equal(product.variants[0].price_cents, 1250);
+    assert.equal(product.variants[0].available, 10);
+    assert.equal(product.variants[0].sellable, true);
+
+    // It is in the catalogue, in the store, and on both pages.
+    const after = await readJson(await request("/api/catalog"));
+    assert.equal(after.counts.products, 7);
+    assert.ok(after.products.some((entry: { id: string }) => entry.id === product.id));
+    assert.equal(handle.store.catalog.getProduct(product.id)?.price_cents, 1250);
+
+    assert.match(await (await request("/")).text(), /Atlas Coffee/);
+    assert.match(await (await request("/manager")).text(), new RegExp(product.variants[0].variant_id));
+  });
+});
+
+test("the catalog write refuses bad input with the same reasons the form post gives", async () => {
+  await withServer(async (handle, request) => {
+    const cases: ReadonlyArray<[unknown, RegExp]> = [
+      [{ price_cents: 100, quantity: 1 }, /name is required/],
+      [{ name: "   ", price_cents: 100, quantity: 1 }, /name is required/],
+      [{ name: 42, price_cents: 100, quantity: 1 }, /name is required/],
+      [{ name: "No price", quantity: 1 }, /price_cents must be a number/],
+      // A null would coerce to zero without this, creating a free product.
+      [{ name: "Null price", price_cents: null, quantity: 1 }, /price_cents must be a number/],
+      [{ name: "String price", price_cents: "1250", quantity: 1 }, /price_cents must be a number/],
+      [{ name: "No quantity", price_cents: 100 }, /quantity must be a number/],
+      [{ name: "Bool quantity", price_cents: 100, quantity: true }, /quantity must be a number/],
+      // Once it is a number, the domain owns the verdict, exactly as on /manager.
+      [{ name: "Negative", price_cents: -1, quantity: 1 }, /Product price_cents must be an integer of at least 0/],
+      [{ name: "Float", price_cents: 12.5, quantity: 1 }, /Product price_cents must be an integer of at least 0/],
+      [{ name: "Negative qty", price_cents: 100, quantity: -3 }, /Product quantity must be an integer of at least 0/],
+    ];
+
+    for (const [body, expected] of cases) {
+      const response = await createProduct(request, body);
+      assert.equal(response.status, 400, JSON.stringify(body));
+      assert.match((await readJson(response)).error, expected);
+    }
+
+    const notJson = await createProduct(request, "nope");
+    assert.equal(notJson.status, 400);
+    assert.match((await readJson(notJson)).error, /must be JSON/);
+
+    const notAnObject = await createProduct(request, [1, 2]);
+    assert.equal(notAnObject.status, 400);
+    assert.match((await readJson(notAnObject)).error, /must be a JSON object/);
+
+    // A zero price and a zero quantity are the domain's minimums, not errors.
+    const zero = await createProduct(request, { name: "Free Sample", price_cents: 0, quantity: 0 });
+    assert.equal(zero.status, 201);
+    const free = await readJson(zero);
+    assert.equal(free.product.variants[0].price_cents, 0);
+    assert.equal(free.product.variants[0].available, 0);
+    // Zero stock is catalogued but not sellable, which the counts have to show.
+    assert.equal(free.counts.sellable_variants, 35);
+
+    // Nothing rejected above was written: only the one accepted add reached the store.
+    assert.equal(handle.store.products.length, 6);
+    const live = handle.store.catalog.listProducts();
+    assert.equal(live.filter((product) => product.name === "Free Sample").length, 1);
+    assert.equal(live.some((product) => ["Negative", "Float", "Null price"].includes(product.name)), false);
+  });
+});
+
+test("the catalog route answers GET, refuses other methods, and bounds its body", async () => {
+  await withServer(async (_handle, request) => {
+    assert.equal((await request("/api/catalog")).status, 200);
+
+    for (const method of ["PUT", "DELETE", "PATCH"]) {
+      const response = await request("/api/catalog", { method });
+      assert.equal(response.status, 405, method);
+      assert.match((await readJson(response)).error, /\/api\/catalog only answers GET, POST/);
+    }
+
+    // The same 8 KiB cap the cart route uses, applied to the write.
+    const oversized = await createProduct(request, {
+      name: "Padded",
+      price_cents: 100,
+      quantity: 1,
+      padding: "x".repeat(20_000),
+    });
+    assert.equal(oversized.status, 413);
+    assert.match((await readJson(oversized)).error, /too large/);
+
+    // The route is not a page route, so it is never answered as HTML.
+    assert.match((await readJson(await createProduct(request, { name: "Json", price_cents: 1, quantity: 1 }))).mode, /demo/);
   });
 });
 

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atlas Ecom</title>
+    <script>
+      /*
+       * The mode is one class on <html>, and it has to be there before the first
+       * paint or a reload in dark flashes light. A stored choice wins; anything
+       * else follows prefers-color-scheme, which is the fallback the
+       * server-rendered pages never had. An unrecognised stored value is treated
+       * as no choice rather than as an error.
+       */
+      (() => {
+        try {
+          const stored = localStorage.getItem("atlas-ecom-theme");
+          const dark =
+            stored === "dark" ||
+            (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        } catch {
+          // Blocked storage still renders; the page defaults to light.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
