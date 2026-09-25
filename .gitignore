@@ -1,0 +1,19 @@
+# Dependencies (package-lock.json is kept; node_modules is not)
+node_modules/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local database files (SQL dumps and SQLite databases, never committed)
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
