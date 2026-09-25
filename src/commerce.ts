@@ -8,12 +8,57 @@ export interface Product {
   /** Units a cart may hold. Availability is decremented at checkout. */
   quantity: number;
   active: boolean;
+  /** Merchandising code. Absent unless a caller supplies one. */
+  sku?: string;
+  brand?: string;
+  category?: string;
+  /** Set when the product is one colour/size variant of a parent product. */
+  color?: string;
+  size?: string;
+  description?: string;
+  /** Absolute http(s) image URL. A browser UI renders it, and only renders it. */
+  image_url?: string;
+  image_alt?: string;
 }
 
 export interface NewProduct {
   name: string;
   price_cents: number;
   quantity: number;
+  /**
+   * Optional stable id. The demo catalogue reuses the committed `db/seed.sql`
+   * variant id so a storefront, a cart line and the seed row share one identity.
+   */
+  id?: string;
+  sku?: string;
+  brand?: string;
+  category?: string;
+  color?: string;
+  size?: string;
+  description?: string;
+  image_url?: string;
+  image_alt?: string;
+}
+
+/** Copies only the display metadata that was actually supplied. */
+function optionalMetadata(input: NewProduct): Partial<Product> {
+  const metadata: Partial<Product> = {};
+  for (const field of [
+    "sku",
+    "brand",
+    "category",
+    "color",
+    "size",
+    "description",
+    "image_url",
+    "image_alt",
+  ] as const) {
+    const value = input[field];
+    if (value === undefined) continue;
+    assertText(value, `Product ${field}`);
+    metadata[field] = value;
+  }
+  return metadata;
 }
 
 export interface ProductPatch {
@@ -141,12 +186,20 @@ export class StandaloneCatalog {
     assertWholeNumber(input.price_cents, "Product price_cents", 0);
     assertWholeNumber(input.quantity, "Product quantity", 0);
 
+    if (input.id !== undefined) {
+      assertText(input.id, "Product id");
+      if (this.products.has(input.id)) {
+        throw new Error(`Product "${input.id}" already exists`);
+      }
+    }
+
     const product: Product = {
-      id: randomUUID(),
+      id: input.id ?? randomUUID(),
       name: input.name,
       price_cents: input.price_cents,
       quantity: input.quantity,
       active: true,
+      ...optionalMetadata(input),
     };
     this.products.set(product.id, product);
     return { ...product };
