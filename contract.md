@@ -3,10 +3,10 @@
 ## Metadata
 
 - Product: Atlas Ecom
-- Contract version: 1.2.0
+- Contract version: 1.3.0
 - Status: ACTIVE
-- Date: 2026-09-25
-- Approval date: 2026-09-25
+- Date: 2026-09-26
+- Approval date: 2026-09-26
 
 ## Vision
 
@@ -39,6 +39,27 @@ presentation from connected peers.
 - Integrators who consume approved capabilities without taking ownership of
   another product's data.
 
+## Legacy knowledge transfer
+
+The legacy `ecom-erp` project is the evidence base for this contract, not its
+authority. It is a read-only reference: this product takes no code, schema,
+route, or UI from it.
+
+- Adopt: the invariants, requirements, and tests a legacy area proved. Each is
+  restated here as a contract of this product and, where it is a rule, as a test
+  that runs in this repository.
+- Redesign: the mechanism behind each adopted requirement is designed inside
+  `core -> cluster -> plugin -> module` in this product, against this
+  product's own database and frontends. A legacy implementation is never
+  carried over.
+- Drop: legacy accidents. Unnormalized order payloads, status-only payment
+  truth, discounts enforced in the browser rather than on the server, and
+  single-process in-memory stores are known defects and are not inherited.
+- No source, schema, route, or UI copy is permitted, and no legacy table is
+  read, imported, or migrated. Legacy data is still not imported.
+- Where a legacy behavior is ambiguous, this contract decides and the legacy
+  repository is cited as evidence for the requirement only.
+
 ## Architecture
 
 The product hierarchy is:
@@ -56,6 +77,33 @@ dependency.
 
 Connect is share-only by default. Adoption or import of data owned by another
 application is a separate, explicit operation.
+
+## Evolution map
+
+This map names candidate modules only. It adds no product boundary, no cluster,
+and no dependency, and a candidate is not approved scope.
+
+| Capability | Candidate modules | Status |
+| --- | --- | --- |
+| Catalog | `browse` (listing, search, filtering), `variant-media` (image and alt
+  text per variant) | candidate |
+| Presentation | `storefront-presentation` (peer-supplied presentation consumed without
+  taking ownership) | candidate |
+| Orders | `lifecycle` (order states and the transitions allowed between them) |
+  candidate |
+| Command admission | `idempotent-admission` (one admitted command per key, with a
+  replayable receipt) | candidate |
+| Customer identity | `customer` (customer record, account, own order history) |
+  prerequisite, not implemented |
+| Reviews and wishlist | `reviews` (one rating per customer and product), `wishlist` (saved
+  items per customer) | candidate |
+| Integration | `import` (inbound catalogue and order data), `outbound` (order
+  notifications and fulfilment events to a peer) | candidate |
+
+Identity and persistence are prerequisites, not scope: no customer-scoped
+capability is approved until identity exists and a restart keeps what it wrote.
+Nothing in this table is approved scope until an amendment promotes it, and a
+promoted module still ships only against the transfer gate below.
 
 ## Design tokens
 
@@ -95,6 +143,11 @@ mode, in both products.
   supplied.
 - Tokens are overridable, and overriding one must not change what any value
   means to the data.
+- Token parity is an acceptance requirement, checked across both products'
+  frontends: the single shared token table above is the reference, each
+  product's bridge resolves to it in both modes, no raw hex value exists
+  outside a product's token bridge, and a parity failure blocks the change
+  rather than being reported after the fact.
 
 ### Component foundation
 
@@ -170,6 +223,18 @@ depends on another product's components to build.
 - Peers exchange data through the protocol and never read or write each
   other's tables directly.
 
+### Cross-product ownership
+
+- Atlas Ecom owns order, payment, and fulfilment intent: what was asked for,
+  what was paid, and what has to ship. It records and reports that intent.
+- Atlas ERP owns sale recognition, stock truth, and journals. Ecom submits the
+  sale as intent and does not decide recognition, quantity, or value.
+- The local quantity on an Ecom catalogue entry is a sellable projection for the
+  storefront, never inventory authority. It is derived from a peer read or from
+  local standalone state, it can be stale, and an order is admitted against the
+  owner's answer rather than against this copy.
+- An owner change is a contract amendment, not an implementation detail.
+
 ## Acceptance gates
 
 1. **Standalone commerce path:** Ecom can publish a catalog and sell through
@@ -199,6 +264,12 @@ depends on another product's components to build.
    no raw hex value in a component, and read every value they display from the
    existing Node API, which stays their only data source.
 
+8. **Legacy transfer:** a capability whose requirement was adopted from legacy
+   knowledge ships only with all of: a public seam naming what it exposes, a
+   stated invariant, a named owning cluster, explicit failure semantics, a real
+   test that runs, and defined UI states for loading, empty, error, and success.
+   An absent, skipped, or stubbed test is not evidence for the gate.
+
 ## Risks and unknowns
 
 - The exact boundaries and APIs for the two frontends and their plugins are
@@ -224,10 +295,14 @@ depends on another product's components to build.
   sibling product's tree separately, so the same component exists twice and can
   drift. A shadcn upgrade or a local component edit has to be applied
   deliberately per product, and there is no shared package to upgrade once.
-- Nothing checks token parity between the two products. If either shadcn
-  variable mapping is edited and the other is not, the storefront and the
-  operator console diverge with no failing check, so parity needs a check that
-  resolves both mappings to the shared token values in both modes.
+- Token parity between the two products is checked by
+  `scripts/check-token-parity.mjs`, which resolves both shadcn variable
+  mappings to the shared token values in both modes and is wired to the
+  `tokens:parity` script, so a mapping edited for the storefront and not for
+  the operator console, or the reverse, fails that check instead of letting the
+  surfaces drift silently. The risk stays open because no automated run invokes
+  the check and it compares the two bridges to each other rather than to the
+  token table above.
 
 ## Amendment history
 
@@ -237,3 +312,4 @@ depends on another product's components to build.
 | 1.1.0 | 2026-09-25 | Approved shared Atlas UI palette and light/dark design-token contract. | ACTIVE |
 | 1.1.1 | 2026-09-25 | Expanded shared UI token table, derived contrast-safe values, and preferred shadcn/ui foundation. | ACTIVE |
 | 1.2.0 | 2026-09-25 | Approved React/Vite/Tailwind/shadcn frontend direction and token mapping for both products. | ACTIVE |
+| 1.3.0 | 2026-09-26 | Approved legacy knowledge transfer rule, evolution map, cross-product ownership, token-parity requirement, and legacy transfer gate. | ACTIVE |
