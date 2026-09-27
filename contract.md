@@ -3,7 +3,7 @@
 ## Metadata
 
 - Product: Atlas Ecom
-- Contract version: 1.4.1
+- Contract version: 1.5.0
 - Status: ACTIVE
 - Date: 2026-09-26
 - Approval date: 2026-09-26
@@ -125,8 +125,17 @@ convenient.
   snapshots behind an opaque cursor, ordered deltas, idempotent inbox handling
   by event id, and proposal transitions.
 - Exactly two capabilities are implemented on the wire, and they are the whole
-  of it: `audit.snapshot`, read from its owner, and `sales.manual_sales`, a
-  single command submitted to its owner.
+  of it: `audit.snapshot`, read from its owner, and `sales.manual_sales`, which
+  crosses as a **proposal** the owner decides rather than as a command. Ecom
+  submits intent and never writes: the owner is the sole master of every
+  capability it serves, validates the intent against its own invariants, and
+  applies it. The owner's decision point is a policy question and is currently
+  open — the owner decides immediately and deterministically, and an
+  operator-in-the-loop decision would need a write path that does not exist yet.
+- The proposal record is held by the owner and is process-local, so a request-keyed
+  receipt replays across a restart while the proposal behind it does not
+  survive one. A durable proposal record is owed before a proposal can be treated
+  as evidence of a decision.
 - Peering is asymmetric. This product serves none of them; the peer serves both
   and is the authority for every record it owns. A manifest names an intent,
   and this section — not a manifest — records what interoperates.
@@ -401,3 +410,4 @@ depends on another product's components to build.
 | 1.3.0 | 2026-09-26 | Approved legacy knowledge transfer rule, evolution map, cross-product ownership, token-parity requirement, and legacy transfer gate. | ACTIVE |
 | 1.4.0 | 2026-09-26 | Approved the separation and interoperability rules, the record of what crosses the boundary today, and the separation gate. | ACTIVE |
 | 1.4.1 | 2026-09-26 | Corrected a false claim that a durable local outbox exists. Delivery is a direct synchronous call and a request-keyed receipt is what is durable; recorded the measured finding that the shipped connect path bypasses the protocol module. | ACTIVE |
+| 1.5.0 | 2026-09-26 | Corrected the record of what crosses: `sales.manual_sales` crosses as a proposal the owner decides, not as a command, because Ecom submits intent and never writes. Recorded the open decision point and the owner's process-local proposal ceiling. | ACTIVE |
