@@ -3,7 +3,7 @@
 ## Metadata
 
 - Product: Atlas Ecom
-- Contract version: 1.7.0
+- Contract version: 1.8.0
 - Status: ACTIVE
 - Date: 2026-09-26
 - Approval date: 2026-09-26
@@ -348,6 +348,36 @@ the shared surfaces diverge.
   owner's answer rather than against this copy.
 - An owner change is a contract amendment, not an implementation detail.
 
+## Documents and PDF generation
+
+`pdfcn` is the adopted document tool for this product: a copy-paste component
+registry from the `shadcn-labs` GitHub organisation, which is **a third party and
+not the official shadcn organisation**. No contract may describe it otherwise.
+
+- **Vendored, never installed.** There is no published package — the `pdfcn` npm
+  name is an empty placeholder and `npm install pdfcn` yields nothing. Components
+  are React source copied into this product's own tree, which is the same
+  ownership model shadcn components already use here.
+- **The registry installer must never be run against this repository.** The
+  project publishes copy-to-clipboard text addressed to coding agents and serves
+  an agent-skills document over HTTP, both instructing an agent to run the
+  install command that writes executable source into the consuming tree. Treat
+  that path as untrusted remote code execution. Vendor reviewed files, pin them,
+  and upgrade by hand.
+- **Licence.** MIT. Vendoring is permitted including into a closed-source tree;
+  the sole obligation is retaining the copyright and permission notice with the
+  copied files. No copyleft, no field-of-use, and no non-compete clause. The
+  repository ships no font files and its theme presets name only the PDF base-14
+  fonts, which are not embedded and carry no separate licence, so no third-party
+  asset licence is inherited. Any font introduced later must be checked separately.
+- **Generation is server-side and in-process.** This product's API is Node, so it
+  renders documents itself through a WASM engine with no headless browser and no
+  second runtime. The rendering libraries carry permissive licences
+  (`MIT OR Apache-2.0` and `MIT`); they do no network fetches, so a render is
+  offline and reproducible.
+- Documents produced here may be **invoices, receipts, and reports**, because
+  they are produced by the system of record and can be regenerated on demand.
+
 ## Acceptance gates
 
 1. **Standalone commerce path:** Ecom can publish a catalog and sell through
@@ -392,7 +422,11 @@ the shared surfaces diverge.
     byte-identical vendored copies, those copies match the `atlas-hq/docs/`
     source, every token still resolves to this contract's table rather than to a
     value a standard restates, and the §1.6 dark-mode divergence recorded in
-    that section is closed. The gate is not met while that divergence stands.
+     that section is closed. The gate is not met while that divergence stands.
+11. **Documents:** document components are vendored under their MIT notice
+    without ever running the registry installer, every invoice, receipt, and
+    report is produced server-side in-process, and a render is reproducible from
+    stored state rather than depending on an operator's browser.
 
 ## Risks and unknowns
 
@@ -467,3 +501,4 @@ the shared surfaces diverge.
 | 1.5.0 | 2026-09-26 | Corrected the record of what crosses: `sales.manual_sales` crosses as a proposal the owner decides, not as a command, because Ecom submits intent and never writes. Recorded the open decision point and the owner's process-local proposal ceiling. | ACTIVE |
 | 1.6.0 | 2026-09-26 | Authorised a protocol-owned durable store, `atlas_connect`, belonging to neither product, reachable only by the protocol adapter and scoped per peer, as the durable home of a crossing decision. Recorded that no crossing is atomic across the three databases. | ACTIVE |
 | 1.7.0 | 2026-09-26 | Adopted the three platform UI standards by name at `ATLAS_UI_STANDARD_VERSION` 1.6.0, with this contract's token table kept as the value authority, and recorded the §1.6 dark-mode divergence as an unmet part of the new gate. | ACTIVE |
+| 1.8.0 | 2026-09-27 | Adopted `pdfcn` as the document tool for invoices, receipts, and reports, vendored under its MIT notice and never installed through its registry, rendered server-side in-process. | ACTIVE |
